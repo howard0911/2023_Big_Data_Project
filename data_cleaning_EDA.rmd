@@ -1,0 +1,124 @@
+---
+title: "STAT32950 Assignment 7"
+author: "Yu-Wei Chen"
+date: "2023/05/14"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=default"></script>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(fig.width = 6, fig.height = 4)
+```
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+data <- read.csv("default_of_credit_card_clients.csv", skip = 1)
+data <- data[,-1] # remove ID
+colnames(data)[24] <- "default"
+summary(data)
+```
+
+## Data cleaning
+```{r}
+# Remove education indices which are not defined
+data <- data %>% filter(EDUCATION<=4 & EDUCATION>0) 
+# Remove MARRIAGE indices which are not defined
+data <- data %>% filter(MARRIAGE!=0)
+for(i in 6:11){
+  # -2 is not defined in the document
+  data <- data[data[,i]!=-2,]
+  # index pay duly as 0
+  data[data[,i]==-1,i] <- 0
+}
+```
+
+
+```{r}
+data$default = factor(data$default)
+data$SEX = factor(data$SEX)
+data$EDUCATION = factor(data$EDUCATION)
+data$MARRIAGE = factor(data$MARRIAGE)
+```
+
+```{r}
+# data <- data %>%
+#   filter(LIMIT_BAL != 1000000) 
+
+# data['BILL_AMT1']>=0 & data['BILL_AMT2']>=0 & data['BILL_AMT3']>=0 & data['BILL_AMT4']>=0 & data['BILL_AMT5']>=0 & data['BILL_AMT6']>=0
+```
+
+```{r}
+library(ggplot2)
+ggplot(data, aes(x = default)) +
+  geom_bar() +
+  labs(title = "Default vs. No Default",
+       x = "Default",
+       y = "Count")
+```
+
+```{r}
+# Create the bar chart with default and sex variables
+ggplot(data, aes(x = default, fill = SEX)) +
+  geom_bar(position = position_dodge()) +
+  labs(title = "Default vs. No Default by Gender",
+       x = "Default",
+       y = "Count",
+       fill = "Sex")
+```
+```{r}
+# Create the bar chart of Education by default
+ggplot(data, aes(x = EDUCATION, fill = default)) +
+  geom_bar(position = "fill") +
+  labs(title = "Education by Sex",
+       x = "Education",
+       y = "Proportion",
+       fill = "Sex") +
+  scale_x_discrete(labels = c("Graduate School", "University", "High School", "Others")) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(data, aes(x = default, fill = MARRIAGE)) +
+   geom_bar(position = "dodge") +
+  labs(title = "Marital Status by Default",
+       x = "Default",
+       y = "Count",
+       fill = "Marital Status") +
+  scale_x_discrete(labels = c("No Default", "Default"))
+  theme_minimal()
+```
+
+
+```{r}
+ggplot(data, aes(x = LIMIT_BAL)) +
+  geom_histogram(binwidth = 5000, fill = "skyblue", color = "black") +
+  labs(title = "Histogram of Amount of Credit",
+       x = "Amount of Credit",
+       y = "Frequency")
+```
+
+
+```{r}
+# No delay payment
+df = data %>%
+  filter(PAY_0 ==0 & PAY_2 ==0 & PAY_3 ==0 & PAY_4 ==0 & PAY_5 ==0 & PAY_6 ==0) 
+table(df$default)[2]/nrow(df) # default rate
+```
+
+
+```{r}
+# Delay payment for all months
+df = data %>%
+  filter(PAY_0 != 0 & PAY_2 != 0 & PAY_3 != 0 & PAY_4 != 0 & PAY_5 != 0 & PAY_6 != 0 ) ->data_not0 
+table(df$default)[2]/nrow(df) # default rate
+
+```
+

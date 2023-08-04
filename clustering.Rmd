@@ -1,0 +1,497 @@
+---
+title: "BUSN 41201 Final Project"
+author: "Arthur Cheib, Yu-Wei Chen, Simone Zhang, Sheng-Hau Peng, Shu-Hsiang Wang"
+date: "2023-05-30"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+
+# Contents
+
+- Summary
+- Introduction
+- Dataset Information
+  - Source
+  - Data Set Information
+  - Attribute Information
+- Exploratory Data Analysis 
+  - Data Cleaning 
+  - Data Visualization
+- Questions that We Want to Solve
+- Model Building
+  - Regression
+    - Logistics Regression on Default 
+    - LASSO
+    - AIC
+    - Principle Components Analysis
+    - Compare the Result
+  - Clustering
+    - K Means
+    - Hierarchical Clustering
+  - Machine Learning
+    - Decision Trees
+    - Random Forest
+    - Classification And Regression Trees (CART)
+    - Neural Network
+- Conclusion
+- Potential Future Research
+- Appendix
+
+
+# Summary
+
+
+# Introduction
+
+
+# Dataset Information
+
+## Source:
+
+Name: I-Cheng Yeh
+
+Email addresses: (1) icyeh '@' chu.edu.tw (2) 140910 '@' mail.tku.edu.tw
+
+Institutions: (1) Department of Information Management, Chung Hua University, Taiwan. (2) Department of Civil Engineering, Tamkang University, Taiwan. Other contact information: 886-2-26215656 ext. 3181
+
+## Data Set Information:
+
+This research aimed at the case of customers default payments in Taiwan and compares the predictive accuracy of probability of default among six data mining methods. From the perspective of risk management, the result of predictive accuracy of the estimated probability of default will be more valuable than the binary result of classification - credible or not credible clients. Because the real probability of default is unknown, this study presented the novel "Sorting Smoothing Method" to estimate the real probability of default. With the real probability of default as the response variable ($Y$), and the predictive probability of default as the independent variable ($X$), the simple linear regression result ($Y = A + BX$) shows that the forecasting model produced by artificial neural network has the highest coefficient of determination; its regression intercept ($A$) is close to zero, and regression coefficient ($B$) to one. Therefore, among the six data mining techniques, artificial neural network is the only one that can accurately estimate the real probability of default.
+
+
+## Attribute Information:
+
+This research employed a binary variable, default payment (Yes = 1, No = 0), as the response variable. This study reviewed the literature and used the following 23 variables as explanatory variables:
+
+- X1: Amount of the given credit (NT dollar): it includes both the individual consumer credit and his/her family (supplementary) credit.
+- X2: Gender (1 = male; 2 = female).
+- X3: Education (1 = graduate school; 2 = university; 3 = high school; 4 = others).
+- X4: Marital status (1 = married; 2 = single; 3 = others).
+- X5: Age (year).
+- X6 - X11: History of past payment. We tracked the past monthly payment records (from April to September, 2005) as follows: 
+  - X6 = the repayment status in September, 2005; 
+  - X7 = the repayment status in August, 2005;...;
+  - X11 = the repayment status in April, 2005. 
+  The measurement scale for the repayment status is: -1 = pay duly; 1 = payment delay for one month; 2 = payment delay for two months;...; 8 = payment delay for eight months; 9 = payment delay for nine months and above.
+- X12-X17: Amount of bill statement (NT dollar). 
+  - X12 = amount of bill statement in September, 2005; 
+  - X13 = amount of bill statement in August, 2005;...; 
+  - X17 = amount of bill statement in April, 2005.
+- X18-X23: Amount of previous payment (NT dollar). 
+  - X18 = amount paid in September, 2005; 
+  - X19 = amount paid in August, 2005;...;
+  - X23 = amount paid in April, 2005.
+
+
+# Exploratory Data Analysis 
+
+```{r}
+# libraries
+library(dplyr)
+library(readxl)
+library(ggplot2)
+library(gridExtra)
+data = read_excel("default_of_credit_card_clients.xls", skip = 1)
+data = data[,-1] # remove ID
+summary(data)
+colnames(data)[24] = "default"
+```
+
+## Data cleaning
+
+```{r}
+# Remove education indices which are not defined
+data <- data %>% filter(EDUCATION<=4 & EDUCATION>0) 
+# Remove MARRIAGE indices which are not defined
+data <- data %>% filter(MARRIAGE!=0)
+for(i in 6:11){
+  # -2 is not defined in the document
+  data <- data[data[,i]!=-2,]
+  # index pay duly as 0
+  data[data[,i]==-1,i] <- 0
+}
+```
+
+
+```{r}
+# factorize
+data <- data %>%
+  mutate(SEX = factor(SEX, labels = c("Male", "Female")), EDUCATION = factor(EDUCATION), MARRIAGE = factor(MARRIAGE)) %>% 
+  mutate(EDUCATION = car::recode(EDUCATION, "c(0, 4, 5, 6) = 'Other';  1 = 'Grad.School'; 2 = 'University'; 3 = 'High.School'"), 
+         MARRIAGE = car::recode(MARRIAGE, "c(0, 3) = 'Other'; 1 = 'Married'; 2 = 'Single'"),
+         default = factor(default, levels = c(0, 1), labels = c("No", "Yes")))
+
+data = data %>% 
+  mutate(PAY_0 = factor(PAY_0, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_2 = factor(PAY_2, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_3 = factor(PAY_3, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_4 = factor(PAY_4, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_5 = factor(PAY_5, order=TRUE,levels=c(seq(0,9, by = 1))), 
+         PAY_6 = factor(PAY_6, order=TRUE,levels=c(seq(0,9, by = 1))))
+```
+
+```{r}
+# data <- data %>%
+#   filter(LIMIT_BAL != 1000000) 
+
+# data['BILL_AMT1']>=0 & data['BILL_AMT2']>=0 & data['BILL_AMT3']>=0 & data['BILL_AMT4']>=0 & data['BILL_AMT5']>=0 & data['BILL_AMT6']>=0
+```
+
+## Data Visualization
+
+```{r}
+ggplot(data, aes(x = default)) +
+  geom_bar() +
+  labs(title = "Default vs. No Default",
+       x = "Default",
+       y = "Count")
+```
+
+```{r}
+ggplot(data, aes(x=default)) + geom_bar() +
+  geom_text(stat="count",aes(label=..count..),vjust=3, color=I("white"),size=5) +
+  labs(x="Default")
+```
+
+```{r}
+ggplot(data, aes(x=LIMIT_BAL)) + geom_histogram() +
+  labs(x="Amount of given credit")
+```
+
+
+```{r}
+# Create the bar chart with default and sex variables
+ggplot(data, aes(x=SEX,fill = default), stat='bin' ) +
+  geom_bar(width = 0.5) + labs(x = "Gender")
+```
+
+```{r}
+ggplot(data, aes(x=EDUCATION,fill = default), stat='bin' ) + 
+  geom_bar(width = 0.5) + labs(x = "Education")
+```
+
+```{r}
+ggplot(data, aes(x=MARRIAGE,fill = default), stat='bin' ) + 
+  geom_bar(width = 0.5) + labs(x = "Marriage")
+```
+
+```{r}
+ggplot(data, aes(x=AGE)) + geom_histogram() 
+```
+
+```{r}
+ggplot(data, aes(y=AGE)) + geom_boxplot() + facet_wrap( ~ SEX)
+```
+
+```{r}
+ggplot(data, aes(y=AGE)) + geom_boxplot() + facet_wrap( ~ default)
+```
+
+
+
+```{r}
+ggplot(data, aes(x=LIMIT_BAL,fill=default)) + geom_histogram(bins = 40) + facet_wrap( ~ SEX) +
+  labs(x="Amount of given credit")
+```
+
+
+```{r}
+ggplot(data, aes(x=LIMIT_BAL,fill=default)) + geom_histogram(bins = 40) + facet_wrap( ~ MARRIAGE) +
+  labs(x="Amount of given credit") + 
+  scale_x_continuous(breaks = c(200000,500000,800000))
+```
+
+```{r}
+ggplot(data, aes(x=LIMIT_BAL,fill=default)) + geom_histogram(bins = 40) + facet_wrap( ~ EDUCATION) +
+  labs(x="Amount of given credit")
+```
+
+```{r}
+#pay
+pay_0 = ggplot(data, aes(x=PAY_0)) + geom_bar()
+pay_2 = ggplot(data, aes(x=PAY_2)) + geom_bar()
+pay_3 = ggplot(data, aes(x=PAY_3)) + geom_bar()
+pay_4 = ggplot(data, aes(x=PAY_4)) + geom_bar()
+pay_5 = ggplot(data, aes(x=PAY_5)) + geom_bar()
+pay_6 = ggplot(data, aes(x=PAY_6)) + geom_bar()
+
+grid.arrange(arrangeGrob(pay_0 + theme(legend.position = "none"),
+                         pay_2 + theme(legend.position = "none"),
+                         pay_3 + theme(legend.position = "none"),
+                         pay_4 + theme(legend.position = "none"),
+                         pay_5 + theme(legend.position = "none"),
+                         pay_6 + theme(legend.position = "none"), nrow = 2))
+```
+
+
+```{r}
+# No delay payment
+df_no_delay = data %>%
+  filter(PAY_0 ==0 & PAY_2 ==0 & PAY_3 ==0 & PAY_4 ==0 & PAY_5 ==0 & PAY_6 ==0) 
+table(df_no_delay$default)[2]/nrow(df_no_delay) # default rate
+```
+
+
+```{r}
+# Delay payment for all months
+df_delay = data %>%
+  filter(PAY_0 != 0 & PAY_2 != 0 & PAY_3 != 0 & PAY_4 != 0 & PAY_5 != 0 & PAY_6 != 0 ) ->data_not0 
+table(df_delay$default)[2]/nrow(df_delay) # default rate
+```
+
+# Questions that We Want to Solve
+
+Our main purposes of the analysis:
+1. Use logistics regression or any other models (LASSO, neural network) to analyze the rate of default (0,1) of users. Also apply PCA or AIC selection the covariates. Although our dataset is not large, we can parallelly do it and compare with original one. 
+2. Clustering the customers, finding the pattern of the customers from our data.
+
+# Model Building
+
+In the following sections, we present several models
+
+## Regression
+
+### Logistics Regression on Default 
+
+```{r}
+set.seed(1234)
+# split data
+idx = sample(1:nrow(data), size=nrow(data)*0.8, replace = FALSE)
+train_data = data[idx,]
+test_data = data[-idx,]
+# initial value
+# logistic_fit = glm(default ~ ., data = train_data, family = binomial)
+# summary(logistic_fit)
+```
+
+### LASSO
+
+```{r}
+# library
+library(glmnet)
+# fit lasso
+# X = as.matrix(train_data[,1:23])
+# Y = train_data$default
+# cv_model = cv.glmnet(X, Y, family = "binomial", alpha = 1)
+#plot(cv_model) # mse for training models
+#best_lambda = cv_model$lambda.1se # choose lambda with 1 se
+#best_model = glmnet(X, Y, family = "binomial", alpha = 1, lambda = best_lambda)
+#coef(best_model)
+# deviance 
+#Y_predicted_in = predict(best_model, s = best_lambda, newx = X)
+```
+
+### AIC
+
+```{r}
+# step(logistic_fit)
+```
+
+### Principle Components Analysis
+
+```{r}
+# pca_result = princomp(data,cor=T)
+```
+
+### Compare the Result
+
+
+## Clustering
+
+Cluster analysis is a valuable technique used in various fields to gain insights from data by identifying groups or clusters of similar objects or observations. Here are a few reasons why we want to conduct cluster analysis:
+
+1. Pattern recognition: Clustering helps identify patterns and uncover similarities or differences among observations, aiding in understanding complex datasets.
+
+2. Data reduction: Clustering groups similar observations together, reducing the complexity and dimensionality of the data and allowing researchers to focus on representative cluster prototypes.
+
+3. Segmentation and targeting: Clustering is used in market segmentation and customer profiling, enabling organizations to tailor their strategies and offerings to specific customer segments.
+
+4. Anomaly detection: Clustering can identify outliers or anomalies within a dataset, helping to detect unusual or atypical observations.
+
+5. Decision-making support: Cluster analysis provides a systematic framework for decision-making, informing resource allocation, product development, and process optimization.
+
+For our data, point 3 and 4 are the main reasons that we want to cluster the data. Point 3 gives us some marketing information and company decision advise. Point 4 is especially important for financial firm that we need to identify the outlier that might have higher probability to get default, causing huge damage.  
+
+Here we try three different clustering methods. Some methods are model-based, and some are not. 
+
+### K Means
+
+K-means is a popular clustering algorithm that aims to partition a dataset into a predetermined number of clusters. The procedure involves the following steps:
+
+1. Initialization: Choose the number of clusters ($k$) and randomly select $k$ initial centroids.
+
+2. Assignment: Calculate the distance between each data point and the centroids. Assign each data point to the nearest centroid.
+
+3. Update: Recalculate the centroids based on the data points assigned to each cluster.
+
+4. Iteration: Repeat the assignment and update steps until the clusters stabilize (convergence).
+
+Once convergence is reached, the algorithm outputs the final cluster assignments and the coordinates of the centroid for each cluster. These results can be used for further analysis or interpretation.
+
+We compare their within-cluster sum of square (WCSS) and choose the appropriate number $k$. Noted that K-means only works on numerical variables.
+
+```{r}
+set.seed(1234)
+# prepare data
+data_kmeans = data[,c(1,5,12:23)]
+# Empty vector to store WCSS values
+wcss =  numeric(10)  
+for (k in 1:10) {
+  model <- kmeans(data_kmeans, centers = k)
+  wcss[k] <- model$tot.withinss
+}
+plot(1:10, wcss, type = "b", xlab = "Number of clusters (k)", ylab = "Within-cluster sum of squares (WCSS)", main="WCSS of K-means with different k") 
+# find elbow, k=4 is appropriate
+kmeans_result = kmeans(data_kmeans, centers = 5)
+kmeans_result
+```
+
+
+
+
+
+### Hierarchical Clustering
+
+Hierarchical clustering is a clustering algorithm that aims to create a hierarchical structure of clusters based on the similarity or dissimilarity between data points. The algorithm starts by considering each data point as an individual cluster and then progressively merges similar clusters together until a single cluster containing all data points is formed. The procedure can be explained in the following steps:
+
+1. Data representation: Begin with a dataset consisting of $n$ data points that you want to cluster. Determine the appropriate representation of the data, such as a distance matrix or a matrix of pairwise similarities/dissimilarities between data points.
+
+2. Distance/similarity calculation: Calculate the distance or similarity between each pair of data points in the dataset. Common distance measures include Euclidean distance, Manhattan distance, or correlation distance. 
+
+3. Cluster initialization: Treat each data point as an individual cluster initially. Each data point is considered as a separate cluster at the start of the algorithm.
+
+4. Cluster merging: Iteratively merge clusters based on their similarity or distance. The two most similar (or closest) clusters are merged at each step to form a larger cluster. The specific method for measuring similarity and determining which clusters to merge depends on the chosen linkage criterion.
+
+5. Linkage criteria: Different linkage criteria define the similarity or distance between clusters and guide the merging process. Some common linkage criteria include:
+
+  - Single linkage: The similarity between two clusters is defined as the minimum distance between any two data points, one from each cluster.
+  - Complete linkage: The similarity between two clusters is defined as the maximum distance between any two data points, one from each cluster.
+  - Average linkage: The similarity between two clusters is defined as the average distance between all pairs of data points, one from each cluster.
+
+6. Determining the number of clusters: At any point during the merging process, you can cut the dendrogram at a certain level to obtain a desired number of clusters. The height or dissimilarity level at which the dendrogram is cut determines the number of resulting clusters.
+
+
+```{r}
+# variables clustering
+# only use numerical data to do hierarchical clustering
+# use correlation as similarity measure
+# variable clustering
+data_hc = data[,-c(2,3,4,6,7,8,9,10,11,24)]
+cor_data = cor(data_hc)
+data_dist = as.dist(cor_data)
+Msingle = hclust(data_dist, method = "single")
+Mcomplete = hclust(data_dist, method = "complete")
+Maverage = hclust(data_dist, method = "average")
+par(mfrow = c(1, 3)) 
+plot(Msingle)
+plot(Mcomplete)
+plot(Maverage)
+```
+
+By the three different linkages, we can obtain some interesting findings. 
+
+1. Single Linkage: We can see that `PAY` and `BILL` two different categorical variables are clustering together. And, `Age` is the most closed to the most far payment `PAY_AMT6`. 
+
+2. Complete Linkage: It prefers to cluster some period of `PAY` and `BILL` together. 
+
+3. Average Linkage: The pattern is unclear. But, we still have that `Age` is the most closed to the most far payment `PAY_AMT6`. 
+
+By clustering variables, we can identify groups or clusters of variables that are related to each other. Variables within the same cluster often have similar behavior or share common underlying factors. This grouping can help in understanding the structure and organization of the dataset, revealing hidden patterns or relationships. 
+
+Next, we want to cluster by observations, but our observations is too large, that we need to reach from other approaches. I choose to randomly sample $500$ observations from our dataset, and trying to find the pattern in the sample. 
+
+```{r}
+# Subset the data by randomly selecting 500 observations
+subset_data <- data_hc[sample(nrow(data_hc), 500), ]
+
+# Perform hierarchical clustering on the subset data
+hc <- hclust(dist(subset_data))
+
+# Summary of clustered sample observation
+cluster_labels <- cutree(hc, k = 3)
+subset_data$cluster_labels <- cluster_labels
+summary(subset_data[subset_data$cluster_labels==1,])
+summary(subset_data[subset_data$cluster_labels==2,])
+summary(subset_data[subset_data$cluster_labels==3,])
+```
+
+Hierarchical clustering allows for a bottom-up approach, starting with individual data points and iteratively merging clusters based on similarity or distance. The resulting dendrogram provides a visual representation of the cluster hierarchy, and by cutting the dendrogram at an appropriate level, you can obtain clusters at different granularities. This algorithm is flexible and can handle various types of data and distance/similarity measures, making it widely used in exploratory data analysis and visualization.
+
+### Gaussian Mixture Models (GMM)
+
+Gaussian Mixture Models (GMM) is a probabilistic clustering algorithm that assumes the underlying data distribution is a mixture of Gaussian distributions. GMM clustering aims to model the data as a collection of Gaussian components, each representing a cluster.
+
+Here's a step-by-step explanation of how Gaussian Mixture Models clustering works:
+
+1. Initialize the parameters of Gaussian components, including means, covariances, and mixing coefficients.
+
+2. Use the Expectation-Maximization (EM) algorithm to iteratively estimate the parameters and update cluster assignments.
+
+3. Repeat the E-step: Calculate the posterior probabilities (responsibilities) of data points belonging to each cluster.
+
+4. Repeat the M-step: Update the parameters of Gaussian components based on the weighted contributions of data points.
+
+5. Iterate steps 3 and 4 until convergence is reached.
+
+6. Assign each data point to the cluster with the highest posterior probability.
+
+7. Determine the optimal number of clusters using model selection criteria.
+
+But now we can use package `mclust` to avoid probability calculation. I find three clusters in this method.
+
+```{r}
+# Perform GMM clustering
+library(mclust)
+data_mc = data
+gmm_model <- Mclust(data_mc[, -24], G = 3)
+summary(gmm_model)
+
+# Retrieve the cluster assignments
+cluster_labels <- gmm_model$classification
+
+# Summary of clustered sample observation
+data_mc$cluster_labels <- cluster_labels
+summary(data_mc[data_mc$cluster_labels==1,])
+summary(data_mc[data_mc$cluster_labels==2,])
+summary(data_mc[data_mc$cluster_labels==3,])
+
+# Visualization 
+plot(gmm_model,what=c("density"))
+```
+
+Now, we have some findings:
+
+1. First cluster is a well-behaved group. Most of them pay the bill on time. They have the lowest default rate. We can proactively communicate with them, keeping customers informed about changes, updates, and new offerings. Share relevant information, such as interest rate changes or new products/services. Proactive communication demonstrates transparency and keeps customers engaged.
+
+2. Second cluster is more likely to be a group has higher default rate. We can develop informative content that emphasizes financial responsibility and highlights the importance of meeting financial obligations. Share tips on budgeting, managing debt, and improving credit scores. Position yourself as a trusted advisor and resource for responsible financial practices.
+
+3. Third cluster includes some extreme outliers that has the highest payment. And, overall they have a little higher credit. We can offer exclusive benefits, discounts, or cashback programs that provide tangible value to your customers. Regularly communicate the rewards and benefits they can enjoy, reinforcing their loyalty to your brand.
+
+
+
+
+## Machine Learning
+
+### Decision Trees
+
+### Random Forest
+
+### Classification And Regression Trees (CART)
+
+### Neural Network
+
+
+
+
+
+# Conclusion
+
+# Potential Future Research
+
+# Appendix
