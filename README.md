@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Our team conducted an in-depth analysis of a loan default dataset comprising 30,000 observations and 25 variables/parameters. This dataset, sourced from UIC, has gained popularity online, being downloaded over 700,000 times. The primary objective of our analysis was to identify patterns among customers regarding loan repayment and determine the key variables contributing to predicting loan default.
+Our team conducted an in-depth analysis of a loan default dataset comprising 30,000 observations and 25 variables/parameters. This dataset, sourced from UCI, has gained popularity online, being downloaded over 700,000 times. The primary objective of our analysis was to identify patterns among customers regarding loan repayment and determine the key variables contributing to predicting loan default.
 
 Additionally, we evaluated the efficiency of various models to provide extra information for decision-makers within financial institutions. Based on our findings, we also aimed to offer insights on how these institutions can effectively target customers.
 
